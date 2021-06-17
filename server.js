@@ -7,11 +7,11 @@ const port = process.env.PORT || 3001;
 require("dotenv").config();
 
 const config = {
-  host: process.env.DB_HOST,
-  user: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_DATABASE,
-  port: process.env.DB_PORT,
+  host: "cinema.cueirbijve5v.sa-east-1.rds.amazonaws.com",
+  user: "admin",
+  password: "Brasilpao12021=",
+  database: "cinema",
+  port: 3306,
 };
 
 const mysql = require("promise-mysql");
