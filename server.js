@@ -4,102 +4,61 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3001;
 
-const sql = require("mssql");
 const config = {
+  host: "localhost",
   user: "cinema",
-  password: "paobrasil1",
-  server: "mssql.filmografiabaiana.com.br",
+  password: "Brasilpao12021=",
   database: "cinema",
+  port: 3306,
 };
+
+const mysql = require("promise-mysql");
+let connection;
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-//** Fetch data about a specific film
-// @ param {int} req - film code */
-app.get("/api/aboutfilme", (req, res) => {
-  const codfilme = req.query.cod_filme;
-  const filmeInfoQuery = `SELECT FF.des_nome_filme [Nome], TM.des_tipo_metragem [Metragem], REPLACE(REPLACE(FF.sts_mudo,'N','Sonoro'),'Y','Mudo') [Sonoro], GF.des_genero_filme [Genero], TS.des_tipo_suporte [Suporte], REPLACE(REPLACE(FF.sts_peb,'S','B&P'),'N','') [PyB], FF.des_material_original [Material_Original], FF.des_origem [Origem], FF.num_ano_producao [Ano_Producao], FF.num_ano_lancamento [Ano_Lancamento], FF.des_etreia [Estreia], FF.des_locacao [Locacao], SB.des_subcategoria, PS.des_pessoa, FF.des_credito_completo [Elenco] FROM filme FF LEFT JOIN genero_filme GF ON FF.cod_genero_filme = GF.cod_genero_filme LEFT JOIN tipo_metragem TM ON FF.cod_tipo_metragem= TM.cod_tipo_metragem LEFT JOIN filme_subcategoria_pessoa FSP ON FF.cod_filme= FSP.cod_filme LEFT JOIN pessoa PS ON FSP.cod_pessoa=PS.cod_pessoa JOIN subcategoria SB ON FSP.cod_subcategoria = SB.cod_subcategoria FULL OUTER join filme_tiposuporte FT ON FT.cod_filme=FF.cod_filme FULL OUTER join tipo_suporte TS ON TS.cod_tipo_suporte= FT.cod_tipo_suporte WHERE FF.cod_filme LIKE ${codfilme}`;
+function parsedFnc(obj) {
+  let filmObjects;
+  if (Array.isArray(obj)) filmObjects = obj;
+  else filmObjects = Object.values(obj);
 
-  console.log(req.query.cod_filme);
-  sql
-    .connect(config)
-    .then(() => sql.query(`${filmeInfoQuery}`))
-    .then((result) => {
-      return res.send(result.recordset);
-    });
-});
+  const newObject = filmObjects.reduce(
+    (accumulator, object) => {
+      const id = object.cod_filme;
 
-//** Fetch main search */
-app.get("/api/advancedsearch", (req, res) => {
-  const nome = req.query.nome;
-  const mudo = req.query.cinemamudo || "%";
-  const genero = req.query.genero;
-  const metragem = req.query.metragem;
-  const suporte = req.query.soporte;
-  const colorido = req.query.colorido || "%";
-  const peb = req.query.peb || "%";
-  const ano = req.query.ano;
-  const origem = req.query.origem;
-  const fonte = req.query.fontes;
-  const observacao = req.query.observacao;
-  const sinopse = req.query.sinopse;
-  const pessoasempresas = req.query.pessoasempresas;
-  const codFilme = req.query.codfilme;
+      //Create the new Object or grab it from the accumulator
+      accumulator[id] = accumulator[id] || {};
 
-  let array = [];
+      //loop through the properties to ful fill the object information
+      const properties = Object.keys(object);
+      properties.forEach((property) => {
+        const value = object[property];
 
-  console.log(req.query);
+        //here chosse how to do it with information duplicated
+        //if the property exists, check if the value is equal or different
+        if (accumulator[id][property] && accumulator[id][property] != value) {
+          //     //check if the property is an array so just push it
+          if (Array.isArray(accumulator[id][property])) {
+            if (accumulator[id][property].indexOf(value) === -1)
+              accumulator[id][property].push(value);
+          } else {
+            accumulator[id][property] = [accumulator[id][property], value];
+          }
+          //if is not turn it into an array
+        } else {
+          accumulator[id][property] = value;
+        }
+      });
 
-  const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON FILME.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON FILME.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem   
-  WHERE [des_nome_filme] LIKE '%${nome}%' 
-  AND (ISNULL([sts_mudo],0) LIKE '${mudo}')
-  AND (ISNULL([sts_colorido],0) LIKE '${colorido}')
-  AND (ISNULL(sts_peb,0) LIKE '${peb}')
-  AND (ISNULL(num_ano_lancamento,0)  LIKE '%${ano}%')
-  AND (ISNULL(des_origem,0)  LIKE '%${origem}%')
-  AND (ISNULL(des_fonte,0)  LIKE '%${fonte}%')
-  AND (des_observacao LIKE '%${observacao}%')
-  AND (ISNULL(des_sinopse,0) LIKE '%${sinopse}%')
-  AND (ISNULL(des_genero_filme,0) LIKE '%${genero}%')
-  AND (ISNULL(des_tipo_metragem,0) LIKE '%${metragem}%')
-  AND (filme.cod_filme like '${codFilme}')
-  AND (cod_filme in (select FILME.cod_filme from filme FULL OUTER join filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme FULL OUTER join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte 
-      WHERE ISNULL(des_tipo_suporte,0) LIKE '%${suporte}%'))
-  AND (cod_filme in (SELECT FILME.cod_filme FROM filme 
-      LEFT JOIN filme_subcategoria_pessoa ON filme.cod_filme=filme_subcategoria_pessoa.cod_filme 
-      LEFT JOIN pessoa ON filme_subcategoria_pessoa.cod_pessoa = pessoa.cod_pessoa
-      WHERE ISNULL(pessoa.des_pessoa,0) LIKE '%${pessoasempresas}%'
-      OR ISNULL(pessoa.des_pessoa02,0) LIKE '%${pessoasempresas}%' 
-      OR ISNULL(pessoa.des_pessoa03,0) LIKE '%${pessoasempresas}%') 
-      OR (cod_filme IN (SELECT FILME.cod_filme FROM FILME LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora 
-      WHERE (ISNULL(des_companhia_produtora,0) LIKE ('%${pessoasempresas}%')) 
-      OR (ISNULL(des_companhia_produtora02,0) LIKE ('%${pessoasempresas}%') ) 
-      OR (ISNULL(des_companhia_produtora03,0) LIKE ('%${pessoasempresas}%') ))))`;
+      return accumulator;
+    },
 
-  sql
-    .connect(config)
-    .then(() => {
-      return sql.query(querybyfilter);
-    })
-    .then((result) => {
-      const sql_main_response = result.recordset.map((el) => el.cod_filme);
-
-      return sql_main_response[0]
-        ? sql.query(`SELECT fl.cod_filme, fl.num_ano_lancamento as Ano, FL.des_nome_filme as Nome, GF.des_genero_filme AS Genero, TM.des_tipo_metragem AS Metragem, FL.des_origem as Origem,
-      STUFF((SELECT ', ' + PS.des_pessoa FROM filme_subcategoria_pessoa FS join pessoa PS ON FS.cod_pessoa=PS.cod_pessoa WHERE FS.cod_subcategoria LIKE '1'
-      AND FS.cod_filme = FL.cod_filme FOR XML PATH('')),1,2,'') AS Director FROM FILME FL JOIN genero_filme GF ON FL.cod_genero_filme=GF.cod_genero_filme 
-      JOIN tipo_metragem TM ON TM.cod_tipo_metragem = FL.cod_tipo_metragem WHERE FL.cod_filme IN (${sql_main_response})`)
-        : ["Empty"];
-    })
-    .then((result) => {
-      return res.send(result.recordset);
-    })
-    .catch((err) => {
-      console.log(err);
-    });
-});
+    {}
+  );
+  return newObject;
+}
 
 app.get("/api/InitialData", (req, res) => {
   const fetchSqlData1 = "select distinct des_tipo_suporte from tipo_suporte;";
@@ -121,31 +80,701 @@ app.get("/api/InitialData", (req, res) => {
       values: [],
     },
   };
-  sql
-    .connect(config)
-    .then(() => {
-      return sql.query(fetchSqlData1);
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(fetchSqlData1);
     })
-    .then((result) => {
-      resultObj.tipoSoporte.values = result.recordset;
+    .then((fetch1) => {
+      resultObj.tipoSoporte.values = fetch1;
+      return connection.query(fetchSqlData2);
     })
-    .then(() => {
-      return sql.query(fetchSqlData2);
+    .then((fetch2) => {
+      resultObj.tipoMetragem.values = fetch2;
+      return connection.query(fetchSqlData3);
     })
-    .then((result) => {
-      resultObj.tipoMetragem.values = result.recordset;
-    })
-    .then(() => {
-      return sql.query(fetchSqlData3);
-    })
-    .then((result) => {
-      resultObj.generoFilme.values = result.recordset;
+    .then((fetch3) => {
+      resultObj.generoFilme.values = fetch3;
+      connection.end();
+      connection = {};
       return res.send(resultObj);
     })
     .catch((err) => {
-      // ... error checks
+      if (connection && connection.end) connection.end;
+      return console.log(err);
     });
 });
+
+app.get("/api/advancedsearch", (req, res) => {
+  const nome = req.query.nome;
+  const mudo = req.query.cinemamudo || "%";
+  const genero = req.query.genero;
+  const metragem = req.query.metragem;
+  const suporte = req.query.soporte;
+  const colorido = req.query.colorido || "%";
+  const peb = req.query.peb || "%";
+  const ano = req.query.ano;
+  const origem = req.query.origem;
+  const fonte = req.query.fontes;
+  const observacao = req.query.observacao;
+  const sinopse = req.query.sinopse;
+  const pessoasempresas = req.query.pessoasempresas;
+  const codFilme = req.query.codfilme;
+
+  let array = [];
+
+  console.log(req.query);
+
+  const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON FILME.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON FILME.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
+  WHERE des_nome_filme LIKE '%${nome}%'
+  AND (IFNULL(sts_mudo,0) LIKE '${mudo}')
+  AND (IFNULL(sts_colorido,0) LIKE '${colorido}')
+  AND (IFNULL(sts_peb,0) LIKE '${peb}')
+  AND (IFNULL(num_ano_lancamento,0)  LIKE '%${ano}%')
+  AND (IFNULL(des_origem,0)  LIKE '%${origem}%')
+  AND (IFNULL(des_fonte,0)  LIKE '%${fonte}%')
+  AND (des_observacao LIKE '%${observacao}%')
+  AND (IFNULL(des_sinopse,0) LIKE '%${sinopse}%')
+  AND (IFNULL(des_genero_filme,0) LIKE '%${genero}%')
+  AND (IFNULL(des_tipo_metragem,0) LIKE '%${metragem}%')
+  AND (filme.cod_filme like '${codFilme}')
+  AND (cod_filme in (select FILME.cod_filme from filme LEFT JOIN filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme LEFT join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte
+      WHERE IFNULL(des_tipo_suporte,0) LIKE '%${suporte}%'))
+  AND (cod_filme in (SELECT FILME.cod_filme FROM filme
+      LEFT JOIN filme_subcategoria_pessoa ON filme.cod_filme=filme_subcategoria_pessoa.cod_filme
+      LEFT JOIN pessoa ON filme_subcategoria_pessoa.cod_pessoa = pessoa.cod_pessoa
+      WHERE IFNULL(pessoa.des_pessoa,0) LIKE '%${pessoasempresas}%'
+      OR IFNULL(pessoa.des_pessoa02,0) LIKE '%${pessoasempresas}%'
+      OR IFNULL(pessoa.des_pessoa03,0) LIKE '%${pessoasempresas}%')
+      OR (cod_filme IN (SELECT FILME.cod_filme FROM FILME LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora
+      WHERE (IFNULL(des_companhia_produtora,0) LIKE ('%${pessoasempresas}%'))
+      OR (IFNULL(des_companhia_produtora02,0) LIKE ('%${pessoasempresas}%') )
+      OR (IFNULL(des_companhia_produtora03,0) LIKE ('%${pessoasempresas}%') ))))`;
+
+  let sql_main_response;
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(querybyfilter);
+    })
+    .then((resp) => {
+      sql_main_response = resp.map((el) => el.cod_filme);
+      console.log(sql_main_response);
+      return connection.query(
+        `select fl.cod_filme, des_nome_filme AS Nome, ifnull(des_genero_filme,'-') AS Genero, num_ano_lancamento AS Ano, des_tipo_metragem AS Metragem, des_origem AS Origem, des_pessoa AS Diretor from filme FL left join genero_filme GF on FL.cod_genero_filme = GF.cod_genero_filme left join tipo_metragem TP on FL.cod_tipo_metragem = TP.cod_tipo_metragem left join filme_diretor FD on FL.cod_filme = FD.cod_filme left join pessoa PS on FD.cod_pessoa = PS.cod_pessoa where fl.cod_filme IN (${sql_main_response})`
+      );
+    })
+    .then((resp) => {
+      //console.log(resp);
+      console.log(Object.values(parsedFnc(resp)));
+      connection.end;
+
+      connection = {};
+      return res.send(Object.values(parsedFnc(resp)));
+    })
+    .catch((err) => {
+      if (connection && connection.end) connection.end;
+      return console.log(err);
+    });
+});
+
+app.get("/api/Institutional", (req, resp) => {
+  iContentQuery = "SELECT * from conteudo_institucional";
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(iContentQuery);
+    })
+    .then((res) => {
+      connection.end;
+      return resp.send(res);
+    })
+    .catch((err) => {
+      connection.end;
+      return console.log(err);
+    });
+});
+
+//** Fetch data about a specific film
+// @ param {int} req - film code */
+app.get("/api/aboutfilme", (req, res) => {
+  const codfilme = req.query.cod_filme;
+  //const codfilme = 2;
+  const filmeInfoQuery =
+    `SELECT FF.des_nome_filme Nome, FF.des_nome_filme_alternativo NomeAlternativo, FF.dtc_lancamento, ifnull(des_fonte,'') AS des_fonte, ifnull(des_observacao,'') AS des_observacao, ifnull(des_contato,'')` +
+    ` AS des_contato, ifnull(des_sinopse,'') AS des_sinopse,  ifnull(des_critica,'') AS des_critica,  ifnull(des_premio,'') AS des_premio,` +
+    ` ifnull(des_copia_disponivel,'') AS des_copia_disponivel,  ifnull(des_link,'') AS des_link,` +
+    ` ifnull(des_censura,'') AS des_censura,  ifnull(des_etreia,'') AS des_etreia, FF.cod_tipo_metragem, TM.des_tipo_metragem Metragem, ` +
+    `FF.sts_mudo, FF.sts_colorido Colorido, FF.sts_destaque,` +
+    `GF.des_genero_filme Genero, FF.cod_genero_filme, TS.des_tipo_suporte Suporte, FF.sts_peb sts_peb, FF.des_material_original ` +
+    `Material_Original, FF.des_origem Origem, FF.num_ano_producao Ano_Producao, FF.num_ano_lancamento Ano_Lancamento, ifnull(FF.des_etreia,'')` +
+    ` AS Estreia, FF.des_locacao Locacao, SB.des_subcategoria, PS.des_pessoa, ifnull(FF.des_credito_completo,'') AS Elenco FROM filme FF ` +
+    `LEFT JOIN genero_filme GF ON FF.cod_genero_filme = GF.cod_genero_filme LEFT JOIN tipo_metragem TM ON FF.cod_tipo_metragem= ` +
+    `TM.cod_tipo_metragem LEFT JOIN filme_subcategoria_pessoa FSP ON FF.cod_filme= FSP.cod_filme LEFT JOIN pessoa PS ON FSP.cod_pessoa=PS.cod_pessoa ` +
+    `JOIN subcategoria SB ON FSP.cod_subcategoria = SB.cod_subcategoria LEFT JOIN filme_tiposuporte FT ON FT.cod_filme=FF.cod_filme` +
+    ` LEFT JOIN tipo_suporte TS ON TS.cod_tipo_suporte= FT.cod_tipo_suporte WHERE FF.cod_filme LIKE ?`;
+
+  const filmePhotos = `Select FF.cod_filme, PH.nom_foto_p, PH.nom_foto, PH.sts_cartaz FROM filme FF LEFT JOIN foto PH ON FF.cod_filme = PH.cod_filme WHERE FF.cod_filme LIKE ${codfilme}`;
+
+  console.log(req.query);
+  //console.log(req);
+  let movieInfo = [];
+  let moviePhoto = [];
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(filmeInfoQuery, codfilme);
+    })
+    .then((resp) => {
+      console.log(resp);
+      movieInfo = resp;
+      return connection.query(filmePhotos);
+    })
+    .then((resp) => {
+      //console.log("-------IMAGENES--------");
+      //console.log(resp);
+      //console.log(resp[0]["nom_foto"]);
+      resp[0].nom_foto
+        ? (moviePhoto = resp.map((el) => {
+            el.sts_cartaz === "S"
+              ? (movieInfo[0]["Portrait"] = {
+                  nom_foto: el.nom_foto
+                    .replace(/\s+/g, "+")
+                    .replace(".JPG", ".jpg")
+                    .replace(".BMP", ".bmp")
+                    .replace(".PNG", ".png"),
+                  nom_foto_p: el.nom_foto_p
+                    .replace(/\s+/g, "+")
+                    .replace(".JPG", ".jpg")
+                    .replace(".BMP", ".bmp")
+                    .replace(".PNG", ".png"),
+                })
+              : null;
+
+            return {
+              ...el,
+              ["nom_foto"]: el.nom_foto
+                .replace(/\s+/g, "+")
+                .replace(".JPG", ".jpg")
+                .replace(".BMP", ".bmp")
+                .replace(".PNG", ".png"),
+              ["nom_foto_p"]: el.nom_foto_p
+                .replace(/\s+/g, "+")
+                .replace(".JPG", ".jpg")
+                .replace(".BMP", ".bmp")
+                .replace(".PNG", ".png"),
+            };
+          }))
+        : null;
+      //console.log(resp);
+      //console.log(moviePhoto);
+
+      console.log(movieInfo);
+      movieInfo[0]["photo"] = moviePhoto;
+
+      // movieInfo[0]["des_link"] = movieInfo[0].des_link.split("\r\n");
+      connection.end;
+
+      // console.log(movieInfo[0].des_link.split("\r\n"));
+
+      return res.send(movieInfo);
+    })
+    .catch((err) => {
+      if (connection && connection.end) connection.end;
+      return console.log(err);
+    });
+});
+
+app.get("/news", (req, res) => {
+  const sqlQuery = `SELECT cod_noticia, des_titulo, des_texto, des_release, des_foto, des_foto_p, DATE_FORMAT(dtc_noticia, '%d/%m/%Y') as date, sts_destaque, sts_ativo, dtc_noticia from cms_noticia ORDER BY dtc_noticia`;
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(sqlQuery);
+    })
+    .then((resp) => {
+      console.log(resp);
+      connection.end;
+      return res.send(resp);
+    })
+    .catch((err) => {
+      if (connection && connection.end) connection.end;
+      return console.log(err);
+    });
+});
+
+app.patch("/news/edit", (req, resp) => {
+  const queryData = req.body.info;
+  console.log(queryData);
+  const patchNewsQuery =
+    "UPDATE CINEMA.cms_noticia SET des_titulo=?,des_release=?,des_texto=?,des_foto=?,sts_destaque=?,sts_ativo=?,des_foto_p=? WHERE COD_NOTICIA LIKE ? AND COD_NOTICIA>0";
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query({ sql: patchNewsQuery }, [
+        queryData.des_titulo,
+        queryData.des_release,
+        queryData.des_texto,
+        queryData.des_foto,
+        queryData.sts_destaque,
+        queryData.sts_ativo,
+        queryData.des_foto_p,
+        queryData.cod_noticia,
+      ]);
+    })
+    .then((res) => {
+      connection.end;
+      console.log(res);
+      return resp.send("Successfully Modified Entry");
+    })
+    .catch((err) => {
+      connection.end;
+      return console.log(err);
+    });
+});
+
+app.post("/news/new", (req, resp) => {
+  const queryData = req.body.info;
+  console.log(queryData);
+
+  const addNewsQuery =
+    "INSERT INTO cms_noticia (des_titulo,des_release,des_texto,dtc_noticia,des_foto,sts_destaque,sts_ativo,des_foto_p) VALUES (?,?,?,NOW(),?,?,?,?);";
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query({ sql: addNewsQuery }, [
+        queryData.des_titulo,
+        queryData.des_release,
+        queryData.des_texto,
+        queryData.des_foto,
+        queryData.sts_destaque,
+        queryData.sts_ativo,
+        queryData.des_foto_p,
+      ]);
+    })
+    .then((res) => {
+      connection.end;
+      //console.log(res);
+      //console.log(res.insertId);
+      return resp.send({
+        texto: "Successfully added new entry",
+        insertId: res.insertId,
+      });
+    })
+    .catch((err) => {
+      connection.end;
+      return console.log(err);
+    });
+});
+
+app.patch("/news/delete", (req, resp) => {
+  console.log(req.body);
+
+  const sqlconnect = async () => {
+    try {
+      const connect = await mysql.createConnection(config);
+      const sqlDelete = await connect.query(
+        "DELETE FROM cms_noticia WHERE cod_noticia LIKE ? AND COD_NOTICIA>16",
+        [req.body.cod_noticia]
+      );
+
+      console.log(sqlDelete);
+
+      resp.send("Borrado exitosamente");
+    } catch (err) {
+      console.log(err);
+    }
+  };
+  sqlconnect();
+});
+
+let tempData = {};
+
+app.get("/movies/initialdata", (req, resp) => {
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(
+        "SELECT cod_subcategoria AS value,des_subcategoria AS label FROM subcategoria"
+      );
+    })
+    .then((res) => {
+      tempData["subcategoria"] = res;
+      return connection.query(
+        "SELECT cod_filme FROM filme ORDER BY cod_filme DESC LIMIT 1"
+      );
+    })
+    .then((res) => {
+      tempData["cod_filme"] = res;
+      return connection.query(
+        `SELECT cod_pessoa AS value, CONCAT(des_pessoa," / ",des_pessoa02) AS label FROM pessoa`
+      );
+    })
+    .then((res) => {
+      tempData["pessoa"] = res;
+      return connection.query(
+        "SELECT cod_pessoa FROM pessoa ORDER BY cod_pessoa DESC LIMIT 1"
+      );
+    })
+    .then((res) => {
+      tempData["cod_pessoa"] = res;
+      // console.log(tempData);
+      connection.end;
+      return resp.send(tempData);
+    })
+    .catch((err) => console.log(err));
+});
+
+app.post("/movies/new", (req, resp) => {
+  console.log(req.body);
+
+  const cod_filme = req.body.lastMovieID.cod_filme + 1;
+
+  const photoData = req.body.photo.map((el) => {
+    return [cod_filme, el.thumb, el.large, el.sts_cartaz ? "S" : "N"];
+  });
+  const personData = req.body.pessoa.map((el) => {
+    return [cod_filme, el.cod_subcategoria, el.cod_pessoa];
+  });
+
+  const movieData = [
+    cod_filme,
+    req.body.info.des_nome_filme,
+    req.body.info.des_nome_filme_alternativo,
+    req.body.info.dtc_lancamento,
+    req.body.info.des_fonte,
+    req.body.info.des_observacao,
+    req.body.info.des_material_original,
+    req.body.info.des_origem,
+    req.body.info.des_contato,
+    req.body.info.cod_genero_filme,
+    req.body.info.sts_colorido,
+    req.body.info.sts_peb,
+    req.body.info.cod_tipo_metragem,
+    req.body.info.sts_mudo,
+    req.body.info.num_ano_producao,
+    req.body.info.num_ano_lancamento,
+    req.body.info.des_sinopse,
+    req.body.info.des_critica,
+    req.body.info.des_premio,
+    req.body.info.des_copia_disponivel,
+    req.body.info.des_link,
+    req.body.info.des_credito_completo,
+    req.body.info.sts_destaque,
+    req.body.info.des_censura,
+    req.body.info.des_locacao,
+    req.body.info.des_etreia,
+  ];
+
+  console.log(personData);
+  console.log(photoData);
+
+  const insertMovie =
+    `insert into filme (cod_filme,des_nome_filme,des_nome_filme_alternativo,dtc_lancamento,des_fonte,des_observacao,des_material_original, des_origem` +
+    `,des_contato,cod_genero_filme,sts_colorido,sts_peb,cod_tipo_metragem,sts_mudo,num_ano_producao,num_ano_lancamento,des_sinopse,des_critica` +
+    `,des_premio,des_copia_disponivel,des_link,des_credito_completo,sts_destaque,des_censura,des_locacao,des_etreia) VALUES ? `;
+
+  const insertDirector = `INSERT INTO filme_diretor (cod_filme,cod_pessoa) VALUES ? `;
+  const insertProducer = `INSERT INTO filme_produtor (cod_filme,cod_pessoa) VALUES ?`;
+
+  const insertFilmeSubcat = `INSERT INTO filme_subcategoria_pessoa (cod_filme,cod_subcategoria,cod_pessoa) VALUES ?`;
+  const insertPhoto = `INSERT INTO foto (cod_filme,nom_foto_p,nom_foto,sts_cartaz) VALUES ?`;
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(insertMovie, [[movieData]]);
+    })
+    .then((res) => {
+      console.log(res);
+
+      return photoData[0]
+        ? connection.query(insertPhoto, [photoData])
+        : console.log("pass");
+    })
+    .then((res) => {
+      console.log(res);
+      return personData[0]
+        ? connection.query(insertFilmeSubcat, [personData])
+        : console.log(pass);
+    })
+    .then((res) => {
+      connection.end;
+      console.log(res);
+      return resp.send("Agregado con exito");
+    })
+    .catch((err) => {
+      console.log(err);
+      connection.end;
+    });
+
+  // const insertDiretorFunction = (element) => {
+  //   mysql
+  //     .createConnection(config)
+  //     .then((con) => {
+  //       console.log("diretor");
+  //       console.log([element[0], element[2]]);
+  //       connection = con;
+  //       return connection.query(insertDirector, [[[element[0], element[2]]]]);
+  //     })
+  //     .then((res) => {
+  //       console.log(res);
+  //       return connection.end;
+  //     })
+  //     .catch((err) => console.log(err));
+  // };
+
+  // const insertProducerFunction = (element) => {
+  //   mysql
+  //     .createConnection(config)
+  //     .then((con) => {
+  //       console.log("produtor");
+  //       console.log(element);
+  //       connection = con;
+  //       return connection.query(insertProducer, [[[element[0], element[2]]]]);
+  //     })
+  //     .then((res) => {
+  //       console.log(res);
+  //       return connection.end;
+  //     })
+  //     .catch((err) => console.log(err));
+  // };
+
+  // personData.forEach((el) => {
+  //   if (el[1] === 1) {
+  //     insertDiretorFunction(el);
+  //   } else if (el[1] === 12) {
+  //     insertProducerFunction(el);
+  //   }
+  // });
+
+  // mysql
+  //   .createConnection(config)
+  //   .then((con) => {
+  //     connection = con;
+  //     personData.forEach((el) => {
+  //       if (el[1] === 1) {
+  //         console.log(`diretor desde dentro!`);
+  //         return connection.query("select 1 + 1 as sum");
+  //       }
+  //     });
+  //     return el[1] === 1
+  //       ? connection.query("select 1 + 1 as sum")
+  //       : console.log("avanza");
+  //   })
+  //   .then((res) => {
+  //     console.log(res);
+  //     personData.forEach((el) => {
+  //       console.log(`produtor desde dentro!`);
+  //       if (el[1] === 12) {
+  //         return connection.query("select 2 + 2 as sum");
+  //       }
+  //     });
+  //   })
+  //   .then((res) => {
+  //     console.log(res);
+  //   })
+  //   .then(() => {
+  //     connection.end;
+  //     return resp.send("Modificado con exito");
+  //   })
+  //   .catch((err) => console.log(err));
+
+  //resp.send("recibido");
+});
+
+app.patch("/movies/edit", (req, resp) => {
+  const editMovieQuery =
+    "UPDATE filme SET des_nome_filme=?,des_nome_filme_alternativo=?,dtc_lancamento=?,des_fonte=?,des_observacao=?," +
+    "des_material_original=?,des_origem=?,des_contato=?,cod_genero_filme=?,sts_colorido=?,sts_peb=?,cod_tipo_metragem=?,sts_mudo=?," +
+    "num_ano_producao=?,num_ano_lancamento=?,des_sinopse=?,des_critica=?,des_premio=?,des_copia_disponivel=?,des_link=?,des_credito_completo=?," +
+    "sts_destaque=?,des_censura=?,des_locacao=?,des_etreia=? WHERE cod_filme LIKE ? AND cod_filme>0;";
+
+  console.log(req.body);
+  const movieData = [
+    req.body.info.des_nome_filme,
+    req.body.info.des_nome_filme_alternativo,
+    req.body.info.dtc_lancamento,
+    req.body.info.des_fonte,
+    req.body.info.des_observacao,
+    req.body.info.des_material_original,
+    req.body.info.des_origem,
+    req.body.info.des_contato,
+    req.body.info.cod_genero_filme,
+    req.body.info.sts_colorido,
+    req.body.info.sts_peb,
+    req.body.info.cod_tipo_metragem,
+    req.body.info.sts_mudo,
+    req.body.info.num_ano_producao,
+    req.body.info.num_ano_lancamento,
+    req.body.info.des_sinopse,
+    req.body.info.des_critica,
+    req.body.info.des_premio,
+    req.body.info.des_copia_disponivel,
+    req.body.info.des_link,
+    req.body.info.des_credito_completo,
+    req.body.info.sts_destaque,
+    req.body.info.des_censura,
+    req.body.info.des_locacao,
+    req.body.info.des_etreia,
+    req.body.movieID,
+  ];
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(editMovieQuery, movieData);
+    })
+    .then((res) => {
+      connection.end;
+      return resp.send(res);
+    })
+    .catch((err) => {
+      connection.end;
+      return console.log(err);
+    });
+});
+
+app.get("/people/InitialData", (req, resp) => {
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(
+        `SELECT cod_pessoa AS value, CONCAT(des_pessoa,"  /  ",des_pessoa02) AS label FROM pessoa`
+      );
+    })
+    .then((res) => {
+      tempData["pessoa"] = res;
+      return connection.query(
+        "SELECT cod_pessoa FROM pessoa ORDER BY cod_pessoa DESC LIMIT 1"
+      );
+    })
+    .then((res) => {
+      tempData["cod_pessoa"] = res;
+      //    console.log(tempData);
+      connection.end;
+      return resp.send(tempData);
+    })
+    .catch((err) => console.log(err));
+});
+
+app.post("/people/new", (req, resp) => {
+  console.log(req.body);
+  const personData = req.body.pessoa.map((el) => {
+    return [
+      el.cod_pessoa,
+      el.des_pessoa,
+      el.des_pessoa02,
+      el.des_pessoa03,
+      null,
+    ];
+  });
+
+  console.log(personData);
+
+  const insertPeople = `INSERT INTO pessoa (cod_pessoa,des_pessoa,des_pessoa02,des_pessoa03,cod_companhia_produtora) VALUES ? `;
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(insertPeople, [personData]);
+    })
+    .then((res) => {
+      console.log(res);
+      connection.end;
+      return resp.send("Modificado con exito");
+    })
+    .catch((err) => console.log(err));
+});
+
+//** Fetch main search */
+// app.get("/api/advancedsearch", (req, res) => {
+//   const nome = req.query.nome;
+//   const mudo = req.query.cinemamudo || "%";
+//   const genero = req.query.genero;
+//   const metragem = req.query.metragem;
+//   const suporte = req.query.soporte;
+//   const colorido = req.query.colorido || "%";
+//   const peb = req.query.peb || "%";
+//   const ano = req.query.ano;
+//   const origem = req.query.origem;
+//   const fonte = req.query.fontes;
+//   const observacao = req.query.observacao;
+//   const sinopse = req.query.sinopse;
+//   const pessoasempresas = req.query.pessoasempresas;
+//   const codFilme = req.query.codfilme;
+
+//   let array = [];
+
+//   console.log(req.query);
+
+//   const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON FILME.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON FILME.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
+//   WHERE [des_nome_filme] LIKE '%${nome}%'
+//   AND (ISNULL([sts_mudo],0) LIKE '${mudo}')
+//   AND (ISNULL([sts_colorido],0) LIKE '${colorido}')
+//   AND (ISNULL(sts_peb,0) LIKE '${peb}')
+//   AND (ISNULL(num_ano_lancamento,0)  LIKE '%${ano}%')
+//   AND (ISNULL(des_origem,0)  LIKE '%${origem}%')
+//   AND (ISNULL(des_fonte,0)  LIKE '%${fonte}%')
+//   AND (des_observacao LIKE '%${observacao}%')
+//   AND (ISNULL(des_sinopse,0) LIKE '%${sinopse}%')
+//   AND (ISNULL(des_genero_filme,0) LIKE '%${genero}%')
+//   AND (ISNULL(des_tipo_metragem,0) LIKE '%${metragem}%')
+//   AND (filme.cod_filme like '${codFilme}')
+//   AND (cod_filme in (select FILME.cod_filme from filme FULL OUTER join filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme FULL OUTER join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte
+//       WHERE ISNULL(des_tipo_suporte,0) LIKE '%${suporte}%'))
+//   AND (cod_filme in (SELECT FILME.cod_filme FROM filme
+//       LEFT JOIN filme_subcategoria_pessoa ON filme.cod_filme=filme_subcategoria_pessoa.cod_filme
+//       LEFT JOIN pessoa ON filme_subcategoria_pessoa.cod_pessoa = pessoa.cod_pessoa
+//       WHERE ISNULL(pessoa.des_pessoa,0) LIKE '%${pessoasempresas}%'
+//       OR ISNULL(pessoa.des_pessoa02,0) LIKE '%${pessoasempresas}%'
+//       OR ISNULL(pessoa.des_pessoa03,0) LIKE '%${pessoasempresas}%')
+//       OR (cod_filme IN (SELECT FILME.cod_filme FROM FILME LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora
+//       WHERE (ISNULL(des_companhia_produtora,0) LIKE ('%${pessoasempresas}%'))
+//       OR (ISNULL(des_companhia_produtora02,0) LIKE ('%${pessoasempresas}%') )
+//       OR (ISNULL(des_companhia_produtora03,0) LIKE ('%${pessoasempresas}%') ))))`;
+
+//   sql
+//     .connect(config)
+//     .then(() => {
+//       return sql.query(querybyfilter);
+//     })
+//     .then((result) => {
+//       const sql_main_response = result.recordset.map((el) => el.cod_filme);
+
+//       return sql_main_response[0]
+//         ? sql.query(`SELECT fl.cod_filme, fl.num_ano_lancamento as Ano, FL.des_nome_filme as Nome, GF.des_genero_filme AS Genero, TM.des_tipo_metragem AS Metragem, FL.des_origem as Origem,
+//       STUFF((SELECT ', ' + PS.des_pessoa FROM filme_subcategoria_pessoa FS join pessoa PS ON FS.cod_pessoa=PS.cod_pessoa WHERE FS.cod_subcategoria LIKE '1'
+//       AND FS.cod_filme = FL.cod_filme FOR XML PATH('')),1,2,'') AS Director FROM FILME FL JOIN genero_filme GF ON FL.cod_genero_filme=GF.cod_genero_filme
+//       JOIN tipo_metragem TM ON TM.cod_tipo_metragem = FL.cod_tipo_metragem WHERE FL.cod_filme IN (${sql_main_response})`)
+//         : ["Empty"];
+//     })
+//     .then((result) => {
+//       return res.send(result.recordset);
+//     })
+//     .catch((err) => {
+//       console.log(err);
+//     });
+// });
 
 app.get("/", (req, res) => {
   res.send("hello world");
