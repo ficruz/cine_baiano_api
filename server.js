@@ -779,7 +779,7 @@ app.post("/people/new", (req, resp) => {
 // });
 
 app.get("/", (req, res) => {
-  res.send("hello world");
+  res.send("Welcome to the Cinema Baiano server");
 });
 
 app.listen(port, () => {
