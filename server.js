@@ -5,8 +5,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 const config = {
-  host: "localhost",
-  user: "cinema",
+  host: "cinema.cueirbijve5v.sa-east-1.rds.amazonaws.com",
+  user: "admin",
   password: "Brasilpao12021=",
   database: "cinema",
   port: 3306,
@@ -127,7 +127,7 @@ app.get("/api/advancedsearch", (req, res) => {
 
   console.log(req.query);
 
-  const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON FILME.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON FILME.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
+  const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON filme.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON filme.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
   WHERE des_nome_filme LIKE '%${nome}%'
   AND (IFNULL(sts_mudo,0) LIKE '${mudo}')
   AND (IFNULL(sts_colorido,0) LIKE '${colorido}')
@@ -140,15 +140,15 @@ app.get("/api/advancedsearch", (req, res) => {
   AND (IFNULL(des_genero_filme,0) LIKE '%${genero}%')
   AND (IFNULL(des_tipo_metragem,0) LIKE '%${metragem}%')
   AND (filme.cod_filme like '${codFilme}')
-  AND (cod_filme in (select FILME.cod_filme from filme LEFT JOIN filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme LEFT join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte
+  AND (cod_filme in (select filme.cod_filme from filme LEFT JOIN filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme LEFT join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte
       WHERE IFNULL(des_tipo_suporte,0) LIKE '%${suporte}%'))
-  AND (cod_filme in (SELECT FILME.cod_filme FROM filme
+  AND (cod_filme in (SELECT filme.cod_filme FROM filme
       LEFT JOIN filme_subcategoria_pessoa ON filme.cod_filme=filme_subcategoria_pessoa.cod_filme
       LEFT JOIN pessoa ON filme_subcategoria_pessoa.cod_pessoa = pessoa.cod_pessoa
       WHERE IFNULL(pessoa.des_pessoa,0) LIKE '%${pessoasempresas}%'
       OR IFNULL(pessoa.des_pessoa02,0) LIKE '%${pessoasempresas}%'
       OR IFNULL(pessoa.des_pessoa03,0) LIKE '%${pessoasempresas}%')
-      OR (cod_filme IN (SELECT FILME.cod_filme FROM FILME LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora
+      OR (cod_filme IN (SELECT filme.cod_filme FROM filme LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora
       WHERE (IFNULL(des_companhia_produtora,0) LIKE ('%${pessoasempresas}%'))
       OR (IFNULL(des_companhia_produtora02,0) LIKE ('%${pessoasempresas}%') )
       OR (IFNULL(des_companhia_produtora03,0) LIKE ('%${pessoasempresas}%') ))))`;
@@ -165,7 +165,7 @@ app.get("/api/advancedsearch", (req, res) => {
       sql_main_response = resp.map((el) => el.cod_filme);
       console.log(sql_main_response);
       return connection.query(
-        `select fl.cod_filme, des_nome_filme AS Nome, ifnull(des_genero_filme,'-') AS Genero, num_ano_lancamento AS Ano, des_tipo_metragem AS Metragem, des_origem AS Origem, des_pessoa AS Diretor from filme FL left join genero_filme GF on FL.cod_genero_filme = GF.cod_genero_filme left join tipo_metragem TP on FL.cod_tipo_metragem = TP.cod_tipo_metragem left join filme_diretor FD on FL.cod_filme = FD.cod_filme left join pessoa PS on FD.cod_pessoa = PS.cod_pessoa where fl.cod_filme IN (${sql_main_response})`
+        `select fl.cod_filme, des_nome_filme AS Nome, ifnull(des_genero_filme,'-') AS Genero, num_ano_lancamento AS Ano, des_tipo_metragem AS Metragem, des_origem AS Origem, des_pessoa AS Diretor from filme fl left join genero_filme GF on fl.cod_genero_filme = GF.cod_genero_filme left join tipo_metragem TP on fl.cod_tipo_metragem = TP.cod_tipo_metragem left join filme_diretor FD on fl.cod_filme = FD.cod_filme left join pessoa PS on FD.cod_pessoa = PS.cod_pessoa where fl.cod_filme IN (${sql_main_response})`
       );
     })
     .then((resp) => {
