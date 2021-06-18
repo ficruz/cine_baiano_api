@@ -104,7 +104,7 @@ app.get("/api/InitialData", (req, res) => {
       return res.send(resultObj);
     })
     .catch((err) => {
-      if (connection && connection.end) connection.end;
+      if (connection && connection.end) connection.end();
       return console.log(err);
     });
 });
@@ -173,13 +173,13 @@ app.get("/api/advancedsearch", (req, res) => {
     .then((resp) => {
       //console.log(resp);
       console.log(Object.values(parsedFnc(resp)));
-      connection.end;
+      connection.end();
 
       connection = {};
       return res.send(Object.values(parsedFnc(resp)));
     })
     .catch((err) => {
-      if (connection && connection.end) connection.end;
+      if (connection && connection.end) connection.end();
       return console.log(err);
     });
 });
@@ -194,11 +194,11 @@ app.get("/api/Institutional", (req, resp) => {
       return connection.query(iContentQuery);
     })
     .then((res) => {
-      connection.end;
+      connection.end();
       return resp.send(res);
     })
     .catch((err) => {
-      connection.end;
+      connection.end();
       return console.log(err);
     });
 });
@@ -283,14 +283,14 @@ app.get("/api/aboutfilme", (req, res) => {
       movieInfo[0]["photo"] = moviePhoto;
 
       // movieInfo[0]["des_link"] = movieInfo[0].des_link.split("\r\n");
-      connection.end;
+      connection.end();
 
       // console.log(movieInfo[0].des_link.split("\r\n"));
 
       return res.send(movieInfo);
     })
     .catch((err) => {
-      if (connection && connection.end) connection.end;
+      if (connection && connection.end) connection.end();
       return console.log(err);
     });
 });
@@ -306,11 +306,11 @@ app.get("/news", (req, res) => {
     })
     .then((resp) => {
       console.log(resp);
-      connection.end;
+      connection.end();
       return res.send(resp);
     })
     .catch((err) => {
-      if (connection && connection.end) connection.end;
+      if (connection && connection.end) connection.end();
       return console.log(err);
     });
 });
@@ -337,12 +337,12 @@ app.patch("/news/edit", (req, resp) => {
       ]);
     })
     .then((res) => {
-      connection.end;
+      connection.end();
       console.log(res);
       return resp.send("Successfully Modified Entry");
     })
     .catch((err) => {
-      connection.end;
+      connection.end();
       return console.log(err);
     });
 });
@@ -369,7 +369,7 @@ app.post("/news/new", (req, resp) => {
       ]);
     })
     .then((res) => {
-      connection.end;
+      connection.end();
       //console.log(res);
       //console.log(res.insertId);
       return resp.send({
@@ -378,7 +378,7 @@ app.post("/news/new", (req, resp) => {
       });
     })
     .catch((err) => {
-      connection.end;
+      connection.end();
       return console.log(err);
     });
 });
@@ -436,7 +436,7 @@ app.get("/movies/initialdata", (req, resp) => {
     .then((res) => {
       tempData["cod_pessoa"] = res;
       // console.log(tempData);
-      connection.end;
+      connection.end();
       return resp.send(tempData);
     })
     .catch((err) => console.log(err));
@@ -517,13 +517,13 @@ app.post("/movies/new", (req, resp) => {
         : console.log(pass);
     })
     .then((res) => {
-      connection.end;
+      connection.end();
       console.log(res);
       return resp.send("Agregado con exito");
     })
     .catch((err) => {
       console.log(err);
-      connection.end;
+      return connection.end();
     });
 
   // const insertDiretorFunction = (element) => {
@@ -645,11 +645,11 @@ app.patch("/movies/edit", (req, resp) => {
       return connection.query(editMovieQuery, movieData);
     })
     .then((res) => {
-      connection.end;
+      connection.end();
       return resp.send(res);
     })
     .catch((err) => {
-      connection.end;
+      connection.end();
       return console.log(err);
     });
 });
@@ -672,7 +672,7 @@ app.get("/people/InitialData", (req, resp) => {
     .then((res) => {
       tempData["cod_pessoa"] = res;
       //    console.log(tempData);
-      connection.end;
+      connection.end();
       return resp.send(tempData);
     })
     .catch((err) => console.log(err));
@@ -702,7 +702,7 @@ app.post("/people/new", (req, resp) => {
     })
     .then((res) => {
       console.log(res);
-      connection.end;
+      connection.end();
       return resp.send("Modificado con exito");
     })
     .catch((err) => console.log(err));
