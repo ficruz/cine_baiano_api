@@ -4,7 +4,7 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3001;
 
-require("dotenv").config();
+//require("dotenv").config();
 
 const config = {
   host: "cinema.cueirbijve5v.sa-east-1.rds.amazonaws.com",
@@ -16,6 +16,7 @@ const config = {
 
 const mysql = require("promise-mysql");
 let connection;
+let tempData = {};
 
 app.use(cors());
 app.use(express.json());
@@ -127,8 +128,6 @@ app.get("/api/advancedsearch", (req, res) => {
 
   let array = [];
 
-  console.log(req.query);
-
   const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON filme.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON filme.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
   WHERE des_nome_filme LIKE '%${nome}%'
   AND (IFNULL(sts_mudo,0) LIKE '${mudo}')
@@ -164,19 +163,33 @@ app.get("/api/advancedsearch", (req, res) => {
       return connection.query(querybyfilter);
     })
     .then((resp) => {
-      sql_main_response = resp.map((el) => el.cod_filme);
-      console.log(sql_main_response);
-      return connection.query(
-        `select fl.cod_filme, des_nome_filme AS Nome, ifnull(des_genero_filme,'-') AS Genero, num_ano_lancamento AS Ano, des_tipo_metragem AS Metragem, des_origem AS Origem, des_pessoa AS Diretor from filme fl left join genero_filme GF on fl.cod_genero_filme = GF.cod_genero_filme left join tipo_metragem TP on fl.cod_tipo_metragem = TP.cod_tipo_metragem left join filme_diretor FD on fl.cod_filme = FD.cod_filme left join pessoa PS on FD.cod_pessoa = PS.cod_pessoa where fl.cod_filme IN (${sql_main_response})`
-      );
+      const returnEmpty = () => {
+        return resp;
+      };
+
+      const continueQuery = () => {
+        sql_main_response = resp.map((el) => el.cod_filme);
+        return connection.query(
+          `select fl.cod_filme, des_nome_filme AS Nome, ifnull(des_genero_filme,'-') AS Genero, num_ano_lancamento AS Ano, des_tipo_metragem AS Metragem, des_origem AS Origem, des_pessoa AS Diretor from filme fl left join genero_filme GF on fl.cod_genero_filme = GF.cod_genero_filme left join tipo_metragem TP on fl.cod_tipo_metragem = TP.cod_tipo_metragem left join filme_diretor FD on fl.cod_filme = FD.cod_filme left join pessoa PS on FD.cod_pessoa = PS.cod_pessoa where fl.cod_filme IN (${sql_main_response})`
+        );
+      };
+
+      if (!resp[0]) {
+        return returnEmpty();
+      } else {
+        return continueQuery();
+      }
     })
     .then((resp) => {
-      //console.log(resp);
-      console.log(Object.values(parsedFnc(resp)));
       connection.end();
 
       connection = {};
-      return res.send(Object.values(parsedFnc(resp)));
+
+      if (!resp[0]) {
+        return res.send([]);
+      } else {
+        return res.send(Object.values(parsedFnc(resp)));
+      }
     })
     .catch((err) => {
       if (connection && connection.end) connection.end();
@@ -206,8 +219,8 @@ app.get("/api/Institutional", (req, resp) => {
 //** Fetch data about a specific film
 // @ param {int} req - film code */
 app.get("/api/aboutfilme", (req, res) => {
-  const codfilme = req.query.cod_filme;
-  //const codfilme = 2;
+  const codfilme = parseInt(req.query.cod_filme);
+
   const filmeInfoQuery =
     `SELECT FF.des_nome_filme Nome, FF.des_nome_filme_alternativo NomeAlternativo, FF.dtc_lancamento, ifnull(des_fonte,'') AS des_fonte, ifnull(des_observacao,'') AS des_observacao, ifnull(des_contato,'')` +
     ` AS des_contato, ifnull(des_sinopse,'') AS des_sinopse,  ifnull(des_critica,'') AS des_critica,  ifnull(des_premio,'') AS des_premio,` +
@@ -219,13 +232,11 @@ app.get("/api/aboutfilme", (req, res) => {
     ` AS Estreia, FF.des_locacao Locacao, SB.des_subcategoria, PS.des_pessoa, ifnull(FF.des_credito_completo,'') AS Elenco FROM filme FF ` +
     `LEFT JOIN genero_filme GF ON FF.cod_genero_filme = GF.cod_genero_filme LEFT JOIN tipo_metragem TM ON FF.cod_tipo_metragem= ` +
     `TM.cod_tipo_metragem LEFT JOIN filme_subcategoria_pessoa FSP ON FF.cod_filme= FSP.cod_filme LEFT JOIN pessoa PS ON FSP.cod_pessoa=PS.cod_pessoa ` +
-    `JOIN subcategoria SB ON FSP.cod_subcategoria = SB.cod_subcategoria LEFT JOIN filme_tiposuporte FT ON FT.cod_filme=FF.cod_filme` +
+    `LEFT JOIN subcategoria SB ON FSP.cod_subcategoria = SB.cod_subcategoria LEFT JOIN filme_tiposuporte FT ON FT.cod_filme=FF.cod_filme` +
     ` LEFT JOIN tipo_suporte TS ON TS.cod_tipo_suporte= FT.cod_tipo_suporte WHERE FF.cod_filme LIKE ?`;
 
-  const filmePhotos = `Select FF.cod_filme, PH.nom_foto_p, PH.nom_foto, PH.sts_cartaz FROM filme FF LEFT JOIN foto PH ON FF.cod_filme = PH.cod_filme WHERE FF.cod_filme LIKE ${codfilme}`;
+  const filmePhotos = `Select FF.cod_filme, PH.nom_foto_p, PH.nom_foto, PH.sts_cartaz FROM filme FF LEFT JOIN foto PH ON FF.cod_filme = PH.cod_filme WHERE FF.cod_filme LIKE ?`;
 
-  console.log(req.query);
-  //console.log(req);
   let movieInfo = [];
   let moviePhoto = [];
 
@@ -236,14 +247,11 @@ app.get("/api/aboutfilme", (req, res) => {
       return connection.query(filmeInfoQuery, codfilme);
     })
     .then((resp) => {
-      console.log(resp);
       movieInfo = resp;
-      return connection.query(filmePhotos);
+
+      return connection.query(filmePhotos, codfilme);
     })
     .then((resp) => {
-      //console.log("-------IMAGENES--------");
-      //console.log(resp);
-      //console.log(resp[0]["nom_foto"]);
       resp[0].nom_foto
         ? (moviePhoto = resp.map((el) => {
             el.sts_cartaz === "S"
@@ -276,16 +284,10 @@ app.get("/api/aboutfilme", (req, res) => {
             };
           }))
         : null;
-      //console.log(resp);
-      //console.log(moviePhoto);
 
-      console.log(movieInfo);
       movieInfo[0]["photo"] = moviePhoto;
 
-      // movieInfo[0]["des_link"] = movieInfo[0].des_link.split("\r\n");
       connection.end();
-
-      // console.log(movieInfo[0].des_link.split("\r\n"));
 
       return res.send(movieInfo);
     })
@@ -305,7 +307,6 @@ app.get("/news", (req, res) => {
       return connection.query(sqlQuery);
     })
     .then((resp) => {
-      console.log(resp);
       connection.end();
       return res.send(resp);
     })
@@ -317,9 +318,9 @@ app.get("/news", (req, res) => {
 
 app.patch("/news/edit", (req, resp) => {
   const queryData = req.body.info;
-  console.log(queryData);
+
   const patchNewsQuery =
-    "UPDATE CINEMA.cms_noticia SET des_titulo=?,des_release=?,des_texto=?,des_foto=?,sts_destaque=?,sts_ativo=?,des_foto_p=? WHERE COD_NOTICIA LIKE ? AND COD_NOTICIA>0";
+    "UPDATE cms_noticia SET des_titulo=?,des_release=?,des_texto=?,des_foto=?,sts_destaque=?,sts_ativo=?,des_foto_p=? WHERE cod_noticia LIKE ? AND cod_noticia>0";
 
   mysql
     .createConnection(config)
@@ -338,7 +339,7 @@ app.patch("/news/edit", (req, resp) => {
     })
     .then((res) => {
       connection.end();
-      console.log(res);
+
       return resp.send("Successfully Modified Entry");
     })
     .catch((err) => {
@@ -349,7 +350,6 @@ app.patch("/news/edit", (req, resp) => {
 
 app.post("/news/new", (req, resp) => {
   const queryData = req.body.info;
-  console.log(queryData);
 
   const addNewsQuery =
     "INSERT INTO cms_noticia (des_titulo,des_release,des_texto,dtc_noticia,des_foto,sts_destaque,sts_ativo,des_foto_p) VALUES (?,?,?,NOW(),?,?,?,?);";
@@ -370,8 +370,7 @@ app.post("/news/new", (req, resp) => {
     })
     .then((res) => {
       connection.end();
-      //console.log(res);
-      //console.log(res.insertId);
+
       return resp.send({
         texto: "Successfully added new entry",
         insertId: res.insertId,
@@ -384,8 +383,6 @@ app.post("/news/new", (req, resp) => {
 });
 
 app.patch("/news/delete", (req, resp) => {
-  console.log(req.body);
-
   const sqlconnect = async () => {
     try {
       const connect = await mysql.createConnection(config);
@@ -394,8 +391,6 @@ app.patch("/news/delete", (req, resp) => {
         [req.body.cod_noticia]
       );
 
-      console.log(sqlDelete);
-
       resp.send("Borrado exitosamente");
     } catch (err) {
       console.log(err);
@@ -403,8 +398,6 @@ app.patch("/news/delete", (req, resp) => {
   };
   sqlconnect();
 });
-
-let tempData = {};
 
 app.get("/movies/initialdata", (req, resp) => {
   mysql
@@ -435,16 +428,17 @@ app.get("/movies/initialdata", (req, resp) => {
     })
     .then((res) => {
       tempData["cod_pessoa"] = res;
-      // console.log(tempData);
+
       connection.end();
       return resp.send(tempData);
     })
-    .catch((err) => console.log(err));
+    .catch((err) => {
+      connection.end();
+      return console.log(err);
+    });
 });
 
 app.post("/movies/new", (req, resp) => {
-  console.log(req.body);
-
   const cod_filme = req.body.lastMovieID.cod_filme + 1;
 
   const photoData = req.body.photo.map((el) => {
@@ -483,9 +477,6 @@ app.post("/movies/new", (req, resp) => {
     req.body.info.des_etreia,
   ];
 
-  console.log(personData);
-  console.log(photoData);
-
   const insertMovie =
     `insert into filme (cod_filme,des_nome_filme,des_nome_filme_alternativo,dtc_lancamento,des_fonte,des_observacao,des_material_original, des_origem` +
     `,des_contato,cod_genero_filme,sts_colorido,sts_peb,cod_tipo_metragem,sts_mudo,num_ano_producao,num_ano_lancamento,des_sinopse,des_critica` +
@@ -504,101 +495,24 @@ app.post("/movies/new", (req, resp) => {
       return connection.query(insertMovie, [[movieData]]);
     })
     .then((res) => {
-      console.log(res);
-
       return photoData[0]
         ? connection.query(insertPhoto, [photoData])
         : console.log("pass");
     })
     .then((res) => {
-      console.log(res);
       return personData[0]
         ? connection.query(insertFilmeSubcat, [personData])
-        : console.log(pass);
+        : console.log("pass");
     })
     .then((res) => {
       connection.end();
-      console.log(res);
-      return resp.send("Agregado con exito");
+
+      return resp.send({ cod_filme: cod_filme });
     })
     .catch((err) => {
       console.log(err);
       return connection.end();
     });
-
-  // const insertDiretorFunction = (element) => {
-  //   mysql
-  //     .createConnection(config)
-  //     .then((con) => {
-  //       console.log("diretor");
-  //       console.log([element[0], element[2]]);
-  //       connection = con;
-  //       return connection.query(insertDirector, [[[element[0], element[2]]]]);
-  //     })
-  //     .then((res) => {
-  //       console.log(res);
-  //       return connection.end;
-  //     })
-  //     .catch((err) => console.log(err));
-  // };
-
-  // const insertProducerFunction = (element) => {
-  //   mysql
-  //     .createConnection(config)
-  //     .then((con) => {
-  //       console.log("produtor");
-  //       console.log(element);
-  //       connection = con;
-  //       return connection.query(insertProducer, [[[element[0], element[2]]]]);
-  //     })
-  //     .then((res) => {
-  //       console.log(res);
-  //       return connection.end;
-  //     })
-  //     .catch((err) => console.log(err));
-  // };
-
-  // personData.forEach((el) => {
-  //   if (el[1] === 1) {
-  //     insertDiretorFunction(el);
-  //   } else if (el[1] === 12) {
-  //     insertProducerFunction(el);
-  //   }
-  // });
-
-  // mysql
-  //   .createConnection(config)
-  //   .then((con) => {
-  //     connection = con;
-  //     personData.forEach((el) => {
-  //       if (el[1] === 1) {
-  //         console.log(`diretor desde dentro!`);
-  //         return connection.query("select 1 + 1 as sum");
-  //       }
-  //     });
-  //     return el[1] === 1
-  //       ? connection.query("select 1 + 1 as sum")
-  //       : console.log("avanza");
-  //   })
-  //   .then((res) => {
-  //     console.log(res);
-  //     personData.forEach((el) => {
-  //       console.log(`produtor desde dentro!`);
-  //       if (el[1] === 12) {
-  //         return connection.query("select 2 + 2 as sum");
-  //       }
-  //     });
-  //   })
-  //   .then((res) => {
-  //     console.log(res);
-  //   })
-  //   .then(() => {
-  //     connection.end;
-  //     return resp.send("Modificado con exito");
-  //   })
-  //   .catch((err) => console.log(err));
-
-  //resp.send("recibido");
 });
 
 app.patch("/movies/edit", (req, resp) => {
@@ -608,7 +522,6 @@ app.patch("/movies/edit", (req, resp) => {
     "num_ano_producao=?,num_ano_lancamento=?,des_sinopse=?,des_critica=?,des_premio=?,des_copia_disponivel=?,des_link=?,des_credito_completo=?," +
     "sts_destaque=?,des_censura=?,des_locacao=?,des_etreia=? WHERE cod_filme LIKE ? AND cod_filme>0;";
 
-  console.log(req.body);
   const movieData = [
     req.body.info.des_nome_filme,
     req.body.info.des_nome_filme_alternativo,
@@ -654,6 +567,32 @@ app.patch("/movies/edit", (req, resp) => {
     });
 });
 
+app.post("/movies/delete", (req, resp) => {
+  const id = req.body.id;
+
+  const deleteFilmPerson = `delete from filme_subcategoria_pessoa where cod_filme like ? and cod_filme>1`;
+  const deleteFilm = `delete from filme where cod_filme like ? and cod_filme>3216`;
+
+  mysql
+    .createConnection(config)
+    .then((con) => {
+      connection = con;
+      return connection.query(deleteFilmPerson, [id]);
+    })
+    .then((res) => {
+      return connection.query(deleteFilm, [id]);
+    })
+    .then((res) => {
+      connection.end();
+      return resp.send("Success");
+    })
+    .catch((err) => {
+      connection.end();
+      return console.log(err);
+    });
+  return;
+});
+
 app.get("/people/InitialData", (req, resp) => {
   mysql
     .createConnection(config)
@@ -671,7 +610,7 @@ app.get("/people/InitialData", (req, resp) => {
     })
     .then((res) => {
       tempData["cod_pessoa"] = res;
-      //    console.log(tempData);
+
       connection.end();
       return resp.send(tempData);
     })
@@ -679,7 +618,6 @@ app.get("/people/InitialData", (req, resp) => {
 });
 
 app.post("/people/new", (req, resp) => {
-  console.log(req.body);
   const personData = req.body.pessoa.map((el) => {
     return [
       el.cod_pessoa,
@@ -690,8 +628,6 @@ app.post("/people/new", (req, resp) => {
     ];
   });
 
-  console.log(personData);
-
   const insertPeople = `INSERT INTO pessoa (cod_pessoa,des_pessoa,des_pessoa02,des_pessoa03,cod_companhia_produtora) VALUES ? `;
 
   mysql
@@ -701,82 +637,11 @@ app.post("/people/new", (req, resp) => {
       return connection.query(insertPeople, [personData]);
     })
     .then((res) => {
-      console.log(res);
       connection.end();
       return resp.send("Modificado con exito");
     })
     .catch((err) => console.log(err));
 });
-
-//** Fetch main search */
-// app.get("/api/advancedsearch", (req, res) => {
-//   const nome = req.query.nome;
-//   const mudo = req.query.cinemamudo || "%";
-//   const genero = req.query.genero;
-//   const metragem = req.query.metragem;
-//   const suporte = req.query.soporte;
-//   const colorido = req.query.colorido || "%";
-//   const peb = req.query.peb || "%";
-//   const ano = req.query.ano;
-//   const origem = req.query.origem;
-//   const fonte = req.query.fontes;
-//   const observacao = req.query.observacao;
-//   const sinopse = req.query.sinopse;
-//   const pessoasempresas = req.query.pessoasempresas;
-//   const codFilme = req.query.codfilme;
-
-//   let array = [];
-
-//   console.log(req.query);
-
-//   const querybyfilter = `SELECT filme.cod_filme FROM filme LEFT JOIN genero_filme ON FILME.cod_genero_filme = genero_filme.cod_genero_filme LEFT JOIN tipo_metragem ON FILME.cod_tipo_metragem=tipo_metragem.cod_tipo_metragem
-//   WHERE [des_nome_filme] LIKE '%${nome}%'
-//   AND (ISNULL([sts_mudo],0) LIKE '${mudo}')
-//   AND (ISNULL([sts_colorido],0) LIKE '${colorido}')
-//   AND (ISNULL(sts_peb,0) LIKE '${peb}')
-//   AND (ISNULL(num_ano_lancamento,0)  LIKE '%${ano}%')
-//   AND (ISNULL(des_origem,0)  LIKE '%${origem}%')
-//   AND (ISNULL(des_fonte,0)  LIKE '%${fonte}%')
-//   AND (des_observacao LIKE '%${observacao}%')
-//   AND (ISNULL(des_sinopse,0) LIKE '%${sinopse}%')
-//   AND (ISNULL(des_genero_filme,0) LIKE '%${genero}%')
-//   AND (ISNULL(des_tipo_metragem,0) LIKE '%${metragem}%')
-//   AND (filme.cod_filme like '${codFilme}')
-//   AND (cod_filme in (select FILME.cod_filme from filme FULL OUTER join filme_tiposuporte ON filme_tiposuporte.cod_filme=filme.cod_filme FULL OUTER join tipo_suporte ON tipo_suporte.cod_tipo_suporte=filme_tiposuporte.cod_tipo_suporte
-//       WHERE ISNULL(des_tipo_suporte,0) LIKE '%${suporte}%'))
-//   AND (cod_filme in (SELECT FILME.cod_filme FROM filme
-//       LEFT JOIN filme_subcategoria_pessoa ON filme.cod_filme=filme_subcategoria_pessoa.cod_filme
-//       LEFT JOIN pessoa ON filme_subcategoria_pessoa.cod_pessoa = pessoa.cod_pessoa
-//       WHERE ISNULL(pessoa.des_pessoa,0) LIKE '%${pessoasempresas}%'
-//       OR ISNULL(pessoa.des_pessoa02,0) LIKE '%${pessoasempresas}%'
-//       OR ISNULL(pessoa.des_pessoa03,0) LIKE '%${pessoasempresas}%')
-//       OR (cod_filme IN (SELECT FILME.cod_filme FROM FILME LEFT JOIN filme_companhiaprodutora ON filme.cod_filme = filme_companhiaprodutora.cod_filme LEFT JOIN companhia_produtora ON filme_companhiaprodutora.cod_companhia_produtora = companhia_produtora.cod_companhia_produtora
-//       WHERE (ISNULL(des_companhia_produtora,0) LIKE ('%${pessoasempresas}%'))
-//       OR (ISNULL(des_companhia_produtora02,0) LIKE ('%${pessoasempresas}%') )
-//       OR (ISNULL(des_companhia_produtora03,0) LIKE ('%${pessoasempresas}%') ))))`;
-
-//   sql
-//     .connect(config)
-//     .then(() => {
-//       return sql.query(querybyfilter);
-//     })
-//     .then((result) => {
-//       const sql_main_response = result.recordset.map((el) => el.cod_filme);
-
-//       return sql_main_response[0]
-//         ? sql.query(`SELECT fl.cod_filme, fl.num_ano_lancamento as Ano, FL.des_nome_filme as Nome, GF.des_genero_filme AS Genero, TM.des_tipo_metragem AS Metragem, FL.des_origem as Origem,
-//       STUFF((SELECT ', ' + PS.des_pessoa FROM filme_subcategoria_pessoa FS join pessoa PS ON FS.cod_pessoa=PS.cod_pessoa WHERE FS.cod_subcategoria LIKE '1'
-//       AND FS.cod_filme = FL.cod_filme FOR XML PATH('')),1,2,'') AS Director FROM FILME FL JOIN genero_filme GF ON FL.cod_genero_filme=GF.cod_genero_filme
-//       JOIN tipo_metragem TM ON TM.cod_tipo_metragem = FL.cod_tipo_metragem WHERE FL.cod_filme IN (${sql_main_response})`)
-//         : ["Empty"];
-//     })
-//     .then((result) => {
-//       return res.send(result.recordset);
-//     })
-//     .catch((err) => {
-//       console.log(err);
-//     });
-// });
 
 app.get("/", (req, res) => {
   res.send("Welcome to the Cinema Baiano server");
