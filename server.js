@@ -4,14 +4,14 @@ const cors = require("cors");
 const app = express();
 const port = process.env.PORT || 3001;
 
-//require("dotenv").config();
+require("dotenv").config();
 
 const config = {
-  host: "cinema.cueirbijve5v.sa-east-1.rds.amazonaws.com",
-  user: "admin",
-  password: "Brasilpao12021=",
-  database: "cinema",
-  port: 3306,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE,
+  port: process.env.DB_PORT,
 };
 
 const mysql = require("promise-mysql");
