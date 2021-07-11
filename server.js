@@ -39,7 +39,7 @@ function parsedFnc(obj) {
       properties.forEach((property) => {
         const value = object[property];
 
-        //here chosse how to do it with information duplicated
+        //here choose how to do it with information duplicated
         //if the property exists, check if the value is equal or different
         if (accumulator[id][property] && accumulator[id][property] != value) {
           //     //check if the property is an array so just push it
@@ -63,7 +63,7 @@ function parsedFnc(obj) {
   return newObject;
 }
 
-app.get("/api/InitialData", (req, res) => {
+app.get("/initialData", (req, res) => {
   const fetchSqlData1 = "select distinct des_tipo_suporte from tipo_suporte;";
   const fetchSqlData2 = "select distinct des_tipo_metragem from tipo_metragem;";
   const fetchSqlData3 = "select distinct des_genero_filme from genero_filme";
@@ -110,7 +110,7 @@ app.get("/api/InitialData", (req, res) => {
     });
 });
 
-app.get("/api/advancedsearch", (req, res) => {
+app.get("/advancedsearch", (req, res) => {
   const nome = req.query.nome;
   const mudo = req.query.cinemamudo || "%";
   const genero = req.query.genero;
@@ -197,7 +197,7 @@ app.get("/api/advancedsearch", (req, res) => {
     });
 });
 
-app.get("/api/Institutional", (req, resp) => {
+app.get("/institutional", (req, resp) => {
   iContentQuery = "SELECT * from conteudo_institucional";
 
   mysql
@@ -218,7 +218,7 @@ app.get("/api/Institutional", (req, resp) => {
 
 //** Fetch data about a specific film
 // @ param {int} req - film code */
-app.get("/api/aboutfilme", (req, res) => {
+app.get("/aboutfilme", (req, res) => {
   const codfilme = parseInt(req.query.cod_filme);
 
   const filmeInfoQuery =
